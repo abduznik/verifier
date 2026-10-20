@@ -1,0 +1,700 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Captcha Channels</title>
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg1:#F9FCFE; --bg2:#E6EFF6;
+  --ink:#3E4A55; --ink2:#4F5B66; --ink3:#5A6570;
+  --blue:#2FA3E0; --blue-d:#1E88D6; --blue-ink:#2B6FA0;
+  --edge:#E1E9F0; --shadow:rgba(60,90,120,.20);
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{font-family:'Nunito',system-ui,sans-serif;color:var(--ink);background:linear-gradient(180deg,var(--bg1),var(--bg2));overflow:hidden}
+button{font-family:inherit;cursor:pointer}
+:focus-visible{outline:3px solid var(--blue-d);outline-offset:3px}
+
+/* ---------- layout ---------- */
+#app{position:relative;width:100%;height:100%;display:flex;flex-direction:column;align-items:center}
+header{margin-top:26px;text-align:center}
+header h1{margin:0;font-size:22px;font-weight:900;letter-spacing:3px}
+header p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--ink3)}
+#grid{margin-top:18px;width:min(1064px,calc(100% - 32px));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 24px;transition:opacity .25s ease}
+#grid.dim{opacity:0;pointer-events:none}
+
+/* ---------- channel tile (TV screen) ---------- */
+.tile{position:relative;display:block;width:100%;height:160px;padding:0;border:0;background:none;transition:transform .15s ease}
+.tile:hover{transform:translateY(-4px)}
+.tile .bezel{position:absolute;inset:0 0 auto 0;height:130px;padding:8px;border-radius:22px;background:#fff;box-shadow:0 8px 18px var(--shadow),inset 0 0 0 2px var(--edge)}
+.tile .screen{position:relative;width:100%;height:100%;border-radius:15px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.tile .chip{position:absolute;left:8px;top:8px;padding:2px 9px;border-radius:999px;background:#fff;color:var(--ink2);font-size:12px;font-weight:800}
+.tile .name{position:absolute;left:0;right:0;top:136px;text-align:center;font-size:14px;font-weight:800;color:var(--ink2)}
+.tile.sel::after{content:"";position:absolute;left:-5px;right:-5px;top:-5px;height:140px;border-radius:27px;border:4px solid var(--blue);box-shadow:0 0 22px rgba(47,163,224,.65);pointer-events:none}
+.tile .badge{position:absolute;right:-8px;top:-10px;width:34px;height:34px;border-radius:50%;background:var(--blue-d);color:#fff;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(30,136,214,.5)}
+.tile.empty .bezel{border:3px dashed #A9C4D8;background:rgba(255,255,255,.55);box-shadow:none;display:flex;align-items:center;justify-content:center}
+.tile.empty .name{color:#3B79A6}
+
+/* ---------- bottom bar ---------- */
+#bar{position:absolute;left:0;right:0;bottom:0;height:124px;padding:0 56px;border-radius:70px 70px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(60,90,120,.14);display:flex;align-items:center;justify-content:space-between;transition:transform .35s ease}
+#bar.hide{transform:translateY(140px)}
+.round{width:96px;height:96px;margin-top:-4px;border-radius:50%;border:3px solid #CFE3F1;background:linear-gradient(180deg,#fff,#E6F2FA);box-shadow:0 6px 14px var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;color:var(--blue-ink);font-size:13px;font-weight:900;transition:transform .15s ease}
+.round:hover{transform:translateY(-16px)}
+.round.primary{border-color:var(--blue);background:linear-gradient(180deg,#52BAF0,var(--blue-d));box-shadow:0 6px 14px rgba(30,136,214,.35);color:#fff}
+#status{width:420px;max-width:34vw;height:64px;padding:0 24px;border-radius:32px;background:#EFF6FB;box-shadow:inset 0 2px 6px rgba(60,90,120,.14);display:flex;align-items:center;justify-content:center;text-align:center;font-size:16px;font-weight:800}
+.right{display:flex;gap:20px;align-items:center}
+
+/* ---------- contribute popover ---------- */
+#pop{position:absolute;left:40px;bottom:148px;width:320px;padding:18px;border-radius:24px;background:#fff;box-shadow:0 12px 32px rgba(60,90,120,.28),inset 0 0 0 2px var(--edge);display:none;flex-direction:column;gap:10px;z-index:5}
+#pop.open{display:flex}
+#pop h2{margin:0;font-size:16px;font-weight:900}
+#pop a{display:block;padding:12px 14px;border-radius:14px;background:#EAF4FB;text-decoration:none;color:#1E5F91;font-size:15px;font-weight:800}
+#pop a:hover{background:#DCEEFA}
+#pop a small{display:block;font-size:13px;font-weight:700;color:var(--ink2)}
+
+/* ---------- open-channel animation ---------- */
+#sheet{position:fixed;z-index:10;display:none;overflow:hidden;will-change:left,top,width,height}
+#sheet.on{display:block}
+#sheet .blob{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none}
+#sheet .stage{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0}
+#sheet .top{height:72px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:rgba(255,255,255,.85)}
+#sheet .top h2{margin:0;font-size:20px;font-weight:900}
+#sheet .top .prog{font-size:15px;font-weight:800;color:var(--ink3)}
+#back{height:44px;padding:0 22px;border-radius:22px;border:3px solid #CFE3F1;background:linear-gradient(180deg,#fff,#E6F2FA);color:var(--blue-ink);font-size:15px;font-weight:900}
+#level{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;transition:opacity .2s ease}
+#level .stub{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
+#level .stub button{height:48px;padding:0 28px;border-radius:24px;border:0;background:var(--blue-d);color:#fff;font-size:16px;font-weight:900}
+
+/* ---------- level internals ---------- */
+.lv{width:min(560px,92vw);display:flex;flex-direction:column;align-items:center;gap:18px;text-align:center}
+.lv h3{margin:0;font-size:20px;font-weight:900}
+.lv p{margin:0;font-size:15px;font-weight:700;color:var(--ink2);line-height:1.45}
+.lv .hintline{font-size:13px;color:var(--ink3)}
+.lv input[type=text]{width:100%;height:52px;padding:0 18px;border-radius:16px;border:3px solid #CFE3F1;background:#fff;font-family:inherit;font-size:17px;font-weight:800;color:var(--ink);text-align:center}
+.lv .primary{height:52px;padding:0 30px;border-radius:26px;border:0;background:var(--blue-d);color:#fff;font-size:16px;font-weight:900;box-shadow:0 4px 0 #14639B}
+.lv .primary:active{transform:translateY(2px);box-shadow:0 2px 0 #14639B}
+.lv .ghostbtn{height:44px;padding:0 22px;border-radius:22px;border:3px solid #CFE3F1;background:#fff;color:var(--blue-ink);font-size:14px;font-weight:900}
+.lv .wrong{animation:shk .32s ease}
+@keyframes shk{0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)}}
+.lv .prompt{font-size:30px;font-weight:900;letter-spacing:3px;color:var(--blue-ink);background:#fff;border-radius:16px;padding:16px 24px;box-shadow:inset 0 0 0 3px var(--edge);word-break:break-word;max-width:100%}
+.wonky span{display:inline-block}
+
+/* crosswalks */
+.road{position:relative;width:min(520px,90vw);height:120px;border-radius:16px;background:#4F5B66;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.road::before{content:"";position:absolute;left:0;right:0;top:50%;height:6px;background:repeating-linear-gradient(90deg,#fff 0 26px,transparent 26px 52px);transform:translateY(-50%);opacity:.85}
+.car{position:absolute;font-size:34px;left:-60px}
+.car.run{animation:drive 1.6s linear}
+@keyframes drive{to{transform:translateX(620px)}}
+.lightbox{display:flex;gap:10px;padding:12px 18px;border-radius:999px;background:#2B3440}
+.lamp{width:26px;height:26px;border-radius:50%;background:#3D4753;transition:background .12s,box-shadow .12s}
+.lamp.on-red{background:#FF5A5A;box-shadow:0 0 16px #FF5A5A}
+.lamp.on-green{background:#4ADE80;box-shadow:0 0 16px #4ADE80}
+
+/* odd one out / bus grid */
+.shapegrid{display:grid;gap:10px;padding:14px;border-radius:18px;background:#fff;box-shadow:inset 0 0 0 3px var(--edge)}
+.shapegrid button{width:52px;height:52px;border-radius:12px;border:0;background:#F2F8FC;font-size:26px;line-height:1;display:flex;align-items:center;justify-content:center}
+.shapegrid button:hover{background:#E4F2FA}
+.shapegrid button.picked{background:#D6EFDF;box-shadow:inset 0 0 0 3px #4ADE80}
+
+/* slide puzzle */
+.puzzle{display:grid;grid-template-columns:repeat(3,74px);gap:8px;padding:12px;border-radius:18px;background:#EAF4FB;box-shadow:inset 0 0 0 3px var(--edge)}
+.puzzle button{width:74px;height:74px;border-radius:14px;border:0;background:linear-gradient(180deg,#fff,#E6F2FA);color:var(--blue-ink);font-size:24px;font-weight:900;box-shadow:0 3px 0 #C4DDEC}
+.puzzle button.blank{background:transparent;box-shadow:none;pointer-events:none}
+
+/* spin */
+.spinner{font-size:64px;line-height:1;transition:transform .05s linear}
+.dial{width:120px;height:120px;border-radius:50%;border:6px solid #CFE3F1;display:flex;align-items:center;justify-content:center;background:#fff}
+.dial.hit{border-color:#4ADE80;box-shadow:0 0 22px rgba(74,222,128,.55)}
+
+/* hold steady */
+.holdbar{width:min(420px,86vw);height:26px;border-radius:13px;background:#E4EFF7;overflow:hidden;box-shadow:inset 0 2px 5px rgba(60,90,120,.18)}
+.holdbar i{display:block;height:100%;width:0;background:linear-gradient(90deg,#52BAF0,var(--blue-d));transition:width .06s linear}
+
+/* pairs */
+.pairs{display:grid;grid-template-columns:repeat(4,64px);gap:10px}
+.pairs button{width:64px;height:64px;border-radius:14px;border:0;background:linear-gradient(180deg,#fff,#E6F2FA);font-size:26px;color:transparent;box-shadow:0 3px 0 #C4DDEC}
+.pairs button.face,.pairs button.done{color:inherit;background:#E7F6EC;box-shadow:0 3px 0 #B7E2C1}
+.pairs button.done{pointer-events:none}
+
+/* trace */
+.tracewrap{position:relative;width:min(460px,88vw);height:200px;border-radius:18px;background:#fff;box-shadow:inset 0 0 0 3px var(--edge);touch-action:none}
+.tracewrap svg{position:absolute;inset:0;width:100%;height:100%}
+.tracewrap .dot{fill:#2FA3E0}
+.tracewrap .dot.next{fill:#FFB347}
+@media (prefers-reduced-motion:reduce){.tile,.round,#bar,#grid,#level{transition:none}}
+</style>
+</head>
+<body>
+<div id="app">
+  <header><h1>CAPTCHA CHANNELS</h1><p>Prove you're human. Eleven times.</p></header>
+  <div id="grid" role="list"></div>
+
+  <div id="pop" role="dialog" aria-label="Add a channel">
+    <h2>Add a channel</h2>
+    <a id="prLink" target="_blank" rel="noopener">Submit a level<small>Open a pull request on GitHub</small></a>
+    <a id="issueLink" target="_blank" rel="noopener">Have an idea?<small>Open an issue on GitHub</small></a>
+  </div>
+
+  <div id="bar">
+    <button id="contribBtn" class="round" aria-label="Contribute: open a pull request or suggest an idea on GitHub">
+      <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2B6FA0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="6" cy="5" r="2.2"/><circle cx="6" cy="19" r="2.2"/><circle cx="18" cy="9" r="2.2"/><path d="M6 7.2v9.6M18 11.2c0 4-6 3-11 6"/></svg>
+      Contribute
+    </button>
+    <div id="status" role="status" aria-live="polite">Pick a channel, or let fate decide.</div>
+    <div class="right">
+      <button id="randomBtn" class="round" aria-label="Random game">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#2B6FA0" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="4"/><circle cx="8.5" cy="8.5" r="1" fill="#2B6FA0"/><circle cx="15.5" cy="8.5" r="1" fill="#2B6FA0"/><circle cx="12" cy="12" r="1" fill="#2B6FA0"/><circle cx="8.5" cy="15.5" r="1" fill="#2B6FA0"/><circle cx="15.5" cy="15.5" r="1" fill="#2B6FA0"/></svg>
+        Random
+      </button>
+      <button id="rushBtn" class="round primary" aria-label="Rushdown mode: every level in random order">
+        <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6l7 6-7 6zM13 6l7 6-7 6z"/></svg>
+        <span id="rushLabel">Rushdown</span>
+      </button>
+    </div>
+  </div>
+
+  <div id="sheet" role="dialog" aria-modal="true" aria-label="Level">
+    <div class="blob"></div>
+    <div class="stage">
+      <div class="top">
+        <h2 id="lvlTitle"></h2>
+        <span class="prog" id="lvlProg"></span>
+        <button id="back">Back</button>
+      </div>
+      <div id="level"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =====================================================================
+   CONFIG
+   ===================================================================== */
+const REPO = 'https://github.com/abduznik/verifier';
+
+/* =====================================================================
+   LEVEL HELPERS
+   ===================================================================== */
+const rnd = n => Math.floor(Math.random() * n);
+const pick = a => a[rnd(a.length)];
+const shufflex = a => { for (let k = a.length - 1; k > 0; k--){ const j = rnd(k + 1); [a[k], a[j]] = [a[j], a[k]]; } return a; };
+const mk = (tag, cls, html) => { const n = document.createElement(tag); if (cls) n.className = cls; if (html != null) n.innerHTML = html; return n; };
+
+// Every level needs a way to say "no". Shake the panel, let the player retry.
+function reject(el){
+  el.classList.remove('wrong'); void el.offsetWidth; el.classList.add('wrong');
+  const box = el.querySelector('input'); if (box){ box.value = ''; box.focus(); }
+}
+
+/* ---- 1. Crosswalks: cross only on green ---- */
+function crosswalks(){
+  return function mount(el, api){
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Crosswalks</h3><p>Wait for the walk light, then cross. Cars are real.</p>' +
+      '<div class="lightbox"><span class="lamp" id="lr"></span><span class="lamp" id="lg"></span></div>' +
+      '<div class="road"><span class="car" id="car">🚗</span></div>' +
+      '<button class="primary" type="button" id="cross">Cross now</button>';
+    el.appendChild(wrap);
+    const lg = wrap.querySelector('#lg'), car = wrap.querySelector('#car'), btn = wrap.querySelector('#cross');
+    let green = false, timers = [];
+    function loop(){
+      green = !green;
+      lg.className = 'lamp' + (green ? ' on-green' : '');
+      if (!green){ car.classList.remove('run'); void car.offsetWidth; car.classList.add('run'); }
+      timers.push(setTimeout(loop, green ? 1100 : 1500));
+    }
+    timers.push(setTimeout(loop, 700));
+    btn.onclick = () => green ? api.complete() : reject(wrap);
+    return () => timers.forEach(clearTimeout);
+  };
+}
+
+/* ---- 2. Wonky Text: read the distorted word ---- */
+function wonkyText(){
+  const words = ['HUMAN','VERIFY','TOASTER','MANGO','TURING','CARROT','PENGUIN','BANANA'];
+  return function mount(el, api){
+    const word = pick(words);
+    const wrap = mk('div', 'lv');
+    const wonky = word.split('').map((c, i) =>
+      '<span style="transform:rotate(' + (rnd(17) - 8) + 'deg) translateY(' + (rnd(9) - 4) + 'px);opacity:' + (0.75 + Math.random() * 0.25).toFixed(2) + '">' + c + '</span>'
+    ).join('');
+    wrap.innerHTML = '<h3>Wonky Text</h3><p>Type what you see.</p><div class="prompt wonky">' + wonky + '</div>' +
+      '<input type="text" aria-label="Type the word" spellcheck="false" autocomplete="off"><button class="primary" type="button">Check</button>';
+    el.appendChild(wrap);
+    const box = wrap.querySelector('input'), btn = wrap.querySelector('button');
+    const check = () => box.value.trim().toUpperCase() === word ? api.complete() : reject(wrap);
+    btn.onclick = check;
+    box.onkeydown = e => { if (e.key === 'Enter') check(); };
+    box.focus();
+  };
+}
+
+/* ---- 3. Slide Puzzle: 3x3, restore order ---- */
+function slidePuzzle(){
+  return function mount(el, api){
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Slide Puzzle</h3><p>Put the numbers back in order. Click a tile next to the gap.</p><div class="puzzle"></div>';
+    el.appendChild(wrap);
+    const grid = wrap.querySelector('.puzzle');
+    let state;
+    // Shuffle by legal moves so the board is always solvable.
+    do {
+      state = [1,2,3,4,5,6,7,8,0];
+      let blank = 8;
+      for (let n = 0; n < 60; n++){
+        const r = Math.floor(blank / 3), c = blank % 3;
+        const opts = [];
+        if (r > 0) opts.push(blank - 3);
+        if (r < 2) opts.push(blank + 3);
+        if (c > 0) opts.push(blank - 1);
+        if (c < 2) opts.push(blank + 1);
+        const t = pick(opts);
+        [state[blank], state[t]] = [state[t], state[blank]];
+        blank = t;
+      }
+    } while (state.every((v, i) => v === (i + 1) % 9));
+
+    function draw(){
+      grid.innerHTML = '';
+      state.forEach((v, i) => {
+        const b = mk('button', v === 0 ? 'blank' : '', v === 0 ? '' : v);
+        b.type = 'button';
+        b.setAttribute('aria-label', v === 0 ? 'empty' : 'tile ' + v);
+        b.onclick = () => move(i);
+        grid.appendChild(b);
+      });
+    }
+    function move(i){
+      const b = state.indexOf(0);
+      const ok = (Math.abs(i - b) === 1 && Math.floor(i / 3) === Math.floor(b / 3)) || Math.abs(i - b) === 3;
+      if (!ok) return reject(wrap);
+      [state[i], state[b]] = [state[b], state[i]];
+      draw();
+      if (state.every((v, k) => v === (k + 1) % 9)) api.complete();
+    }
+    draw();
+  };
+}
+
+/* ---- 4. Spin the Duck: stop it pointing at the target ---- */
+function spinDuck(){
+  return function mount(el, api){
+    const target = rnd(360);
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Spin the Duck</h3><p>Stop the dial inside the green target.</p>' +
+      '<div class="dial"><span class="spinner">🦆</span></div>' +
+      '<div class="hintline">target: ' + target + '°</div>' +
+      '<button class="primary" type="button">Stop</button>';
+    el.appendChild(wrap);
+    const sp = wrap.querySelector('.spinner'), dial = wrap.querySelector('.dial'), btn = wrap.querySelector('button');
+    let ang = 0, raf, running = true;
+    function tick(){ ang = (ang + 3.2) % 360; sp.style.transform = 'rotate(' + ang + 'deg)'; raf = requestAnimationFrame(tick); }
+    raf = requestAnimationFrame(tick);
+    btn.onclick = () => {
+      if (!running) return;
+      running = false; cancelAnimationFrame(raf);
+      const diff = Math.min(Math.abs(ang - target), 360 - Math.abs(ang - target));
+      if (diff <= 14) api.complete(); else reject(wrap);
+    };
+    return () => cancelAnimationFrame(raf);
+  };
+}
+
+/* ---- 5. Traffic Lights: click only on green ---- */
+function trafficLights(){
+  return function mount(el, api){
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Traffic Lights</h3><p>Press the button while the light is green. Not before.</p>' +
+      '<div class="lightbox"><span class="lamp on-red" id="l1"></span><span class="lamp" id="l2"></span><span class="lamp" id="l3"></span></div>' +
+      '<button class="primary" type="button">Press</button>';
+    el.appendChild(wrap);
+    const l1 = wrap.querySelector('#l1'), l2 = wrap.querySelector('#l2'), l3 = wrap.querySelector('#l3');
+    const btn = wrap.querySelector('button');
+    let phase = 0, timers = [];
+    function set(p){
+      phase = p;
+      l1.className = 'lamp' + (p === 0 ? ' on-red' : '');
+      l2.className = 'lamp' + (p === 1 ? ' on-red' : '');
+      l3.className = 'lamp' + (p === 2 ? ' on-green' : '');
+    }
+    function cycle(){ set((phase + 1) % 3); timers.push(setTimeout(cycle, phase === 2 ? 1300 : 900)); }
+    timers.push(setTimeout(cycle, 900));
+    btn.onclick = () => phase === 2 ? api.complete() : reject(wrap);
+    return () => timers.forEach(clearTimeout);
+  };
+}
+
+/* ---- 6. Odd One Out ---- */
+function oddOneOut(){
+  return function mount(el, api){
+    const size = 4, total = size * size, odd = rnd(total);
+    const base = pick(['◆', '●', '▲', '■', '⬢']);
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Odd One Out</h3><p>One shape is different. Find it.</p><div class="shapegrid" style="grid-template-columns:repeat(' + size + ',52px)"></div>';
+    el.appendChild(wrap);
+    const g = wrap.querySelector('.shapegrid');
+    for (let i = 0; i < total; i++){
+      const b = mk('button', '', i === odd ? '◆' : base);
+      b.type = 'button';
+      b.style.transform = i === odd ? 'rotate(45deg)' : 'rotate(' + (rnd(4) * 90) + 'deg)';
+      if (i === odd) b.style.color = '#F78FB3';
+      b.onclick = () => i === odd ? api.complete() : reject(wrap);
+      g.appendChild(b);
+    }
+  };
+}
+
+/* ---- 7. Click the Bus: select every bus ---- */
+function clickTheBus(){
+  return function mount(el, api){
+    const size = 4, total = size * size;
+    const vehicles = ['🚗','🚕','🚙','🚌','🚐','🏎️'];
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Click the Bus</h3><p>Select every bus, then confirm.</p><div class="shapegrid" style="grid-template-columns:repeat(' + size + ',52px)"></div><button class="primary" type="button">Confirm</button>';
+    el.appendChild(wrap);
+    const g = wrap.querySelector('.shapegrid'), btn = wrap.querySelector('.primary');
+    const cells = [];
+    for (let i = 0; i < total; i++){
+      const isBus = Math.random() < 0.3;
+      const b = mk('button', '', isBus ? '🚌' : pick(vehicles.filter(v => v !== '🚌')));
+      b.type = 'button';
+      b.dataset.bus = isBus ? '1' : '0';
+      b.onclick = () => b.classList.toggle('picked');
+      cells.push(b); g.appendChild(b);
+    }
+    if (!cells.some(c => c.dataset.bus === '1')) cells[rnd(total)].dataset.bus = '1', cells[rnd(total)].textContent = '🚌';
+    btn.onclick = () => {
+      const ok = cells.every(c => (c.dataset.bus === '1') === c.classList.contains('picked'));
+      ok ? api.complete() : reject(wrap);
+    };
+  };
+}
+
+/* ---- 8. Sum It Up ---- */
+function sumItUp(){
+  return function mount(el, api){
+    const a = 3 + rnd(28), b = 2 + rnd(19);
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Sum It Up</h3><p>What is ' + a + ' + ' + b + '?</p>' +
+      '<input type="text" inputmode="numeric" aria-label="Your answer" autocomplete="off"><button class="primary" type="button">Check</button>';
+    el.appendChild(wrap);
+    const box = wrap.querySelector('input'), btn = wrap.querySelector('button');
+    const check = () => box.value.trim() === String(a + b) ? api.complete() : reject(wrap);
+    btn.onclick = check;
+    box.onkeydown = e => { if (e.key === 'Enter') check(); };
+    box.focus();
+  };
+}
+
+/* ---- 9. Hold Steady ---- */
+function holdSteady(){
+  return function mount(el, api){
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Hold Steady</h3><p>Press and hold for two seconds. Letting go early resets it.</p>' +
+      '<div class="holdbar"><i></i></div><button class="primary" type="button">Hold</button>';
+    el.appendChild(wrap);
+    const bar = wrap.querySelector('.holdbar i'), btn = wrap.querySelector('.primary');
+    let start = 0, raf = null, holding = false;
+    function tick(){
+      const p = Math.min(1, (performance.now() - start) / 2000);
+      bar.style.width = (p * 100) + '%';
+      if (p >= 1){ holding = false; api.complete(); return; }
+      raf = requestAnimationFrame(tick);
+    }
+    function down(e){ e.preventDefault(); if (holding) return; holding = true; start = performance.now(); raf = requestAnimationFrame(tick); }
+    function up(){ if (!holding) return; holding = false; cancelAnimationFrame(raf); bar.style.width = '0'; }
+    btn.addEventListener('pointerdown', down);
+    addEventListener('pointerup', up);
+    btn.onkeydown = e => { if (e.key === ' ' || e.key === 'Enter') down(e); };
+    btn.onkeyup = up;
+    return () => { cancelAnimationFrame(raf); removeEventListener('pointerup', up); };
+  };
+}
+
+/* ---- 10. Pick Pairs ---- */
+function pickPairs(){
+  return function mount(el, api){
+    const faces = shufflex(['🍎','🍇','🍋','🍑','🍎','🍇','🍋','🍑']);
+    // pairs must be exactly two of each - shuffle above guarantees it
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Pick Pairs</h3><p>Find all four pairs.</p><div class="pairs"></div>';
+    el.appendChild(wrap);
+    const g = wrap.querySelector('.pairs');
+    let first = null, locked = false, found = 0;
+    const cards = faces.map(f => {
+      const b = mk('button', '', f);
+      b.type = 'button';
+      b.setAttribute('aria-label', 'card');
+      b.onclick = () => flip(b, f);
+      g.appendChild(b);
+      return b;
+    });
+    function flip(b, f){
+      if (locked || b.classList.contains('done') || b === first) return;
+      b.classList.add('face');
+      if (!first){ first = b; first.dataset.f = f; return; }
+      locked = true;
+      if (first.dataset.f === f){
+        first.classList.add('done'); b.classList.add('done');
+        found++; first = null; locked = false;
+        if (found === 4) api.complete();
+      } else {
+        setTimeout(() => {
+          first.classList.remove('face'); b.classList.remove('face');
+          first = null; locked = false;
+        }, 620);
+      }
+    }
+  };
+}
+
+/* ---- 11. Trace the Line ---- */
+function traceTheLine(){
+  return function mount(el, api){
+    const pts = [[40,100],[130,50],[230,120],[330,60],[420,100]];
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>Trace the Line</h3><p>Drag from dot 1 to dot 5 without letting go.</p>' +
+      '<div class="tracewrap"><svg viewBox="0 0 460 200" aria-hidden="true">' +
+      '<polyline points="' + pts.map(p => p.join(',')).join(' ') + '" fill="none" stroke="#CFE3F1" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>' +
+      pts.map((p, i) => '<circle class="dot' + (i === 0 ? ' next' : '') + '" data-i="' + i + '" cx="' + p[0] + '" cy="' + p[1] + '" r="11"/>').join('') +
+      '</svg></div>';
+    el.appendChild(wrap);
+    const box = wrap.querySelector('.tracewrap');
+    const dots = [...wrap.querySelectorAll('.dot')];
+    let idx = 0, dragging = false;
+    function pos(e){
+      const r = box.getBoundingClientRect();
+      return [ (e.clientX - r.left) * (460 / r.width), (e.clientY - r.top) * (200 / r.height) ];
+    }
+    function near(p, q, r){ return Math.hypot(p[0] - q[0], p[1] - q[1]) <= r; }
+    box.addEventListener('pointerdown', e => {
+      const p = pos(e);
+      if (near(p, pts[0], 26)){ dragging = true; idx = 1; dots[0].classList.remove('next'); dots[1].classList.add('next'); box.setPointerCapture(e.pointerId); }
+    });
+    box.addEventListener('pointermove', e => {
+      if (!dragging || idx >= pts.length) return;
+      if (near(pos(e), pts[idx], 30)){
+        dots[idx].classList.remove('next');
+        idx++;
+        if (idx < pts.length) dots[idx].classList.add('next');
+        if (idx === pts.length) api.complete();
+      }
+    });
+    const stop = () => { dragging = false; };
+    box.addEventListener('pointerup', stop);
+    box.addEventListener('pointercancel', stop);
+    addEventListener('pointerup', stop);
+    return () => removeEventListener('pointerup', stop);
+  };
+}
+
+/* =====================================================================
+   LEVEL REGISTRY
+   Each level: { id, name, mount(container, api) -> optional cleanup fn }
+   ===================================================================== */
+const LEVELS = [
+  { id:'crosswalks',     name:'Crosswalks',      mount: crosswalks() },
+  { id:'wonky-text',     name:'Wonky Text',      mount: wonkyText() },
+  { id:'slide-puzzle',   name:'Slide Puzzle',    mount: slidePuzzle() },
+  { id:'spin-the-duck',  name:'Spin the Duck',   mount: spinDuck() },
+  { id:'traffic-lights', name:'Traffic Lights',  mount: trafficLights() },
+  { id:'odd-one-out',    name:'Odd One Out',     mount: oddOneOut() },
+  { id:'click-the-bus',  name:'Click the Bus',   mount: clickTheBus() },
+  { id:'sum-it-up',      name:'Sum It Up',       mount: sumItUp() },
+  { id:'hold-steady',    name:'Hold Steady',     mount: holdSteady() },
+  { id:'pick-pairs',     name:'Pick Pairs',      mount: pickPairs() },
+  { id:'trace-the-line', name:'Trace the Line',  mount: traceTheLine() }
+];
+
+/* =====================================================================
+   VISUAL TOKENS (blob colours / tile backgrounds / blob outlines)
+   ===================================================================== */
+const COLORS = ['#5BB8F0','#7FD36B','#FFB347','#F78FB3','#A78BFA','#3CC9B5','#FFD84D','#FF7A7A'];
+const BGS    = ['#EAF4FB','#EEF8E9','#FFF3E0','#FDEBF2','#F0ECFE','#E5F7F4','#FFF9DC','#FFEDED'];
+const PATHS  = [
+  'M50 8 C72 6 92 24 90 48 C88 72 70 94 46 92 C22 90 8 70 12 46 C15 26 30 10 50 8 Z',
+  'M44 10 C66 4 94 20 92 46 C90 70 78 90 52 92 C28 94 6 78 10 52 C13 30 24 14 44 10 Z',
+  'M56 8 C80 12 94 32 88 56 C82 80 62 94 40 88 C18 82 6 62 14 40 C22 18 36 4 56 8 Z',
+  'M50 12 C74 10 90 30 88 52 C86 76 66 90 44 90 C22 90 10 68 12 48 C14 26 28 14 50 12 Z'
+];
+const pad = n => (n < 10 ? '0' : '') + n;
+function blobSvg(i, size){
+  return '<svg viewBox="0 0 100 100" width="' + size + '" height="' + size + '" aria-hidden="true">' +
+    '<path d="' + PATHS[i % 4] + '" fill="' + COLORS[i % 8] + '"/>' +
+    '<ellipse cx="38" cy="32" rx="16" ry="9" fill="#fff" opacity=".45" transform="rotate(-20 38 32)"/></svg>';
+}
+
+/* =====================================================================
+   STATE + DOM
+   ===================================================================== */
+const $ = id => document.getElementById(id);
+const grid = $('grid'), sheet = $('sheet'), statusEl = $('status');
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+let tiles = [], timers = [], rush = null, openIdx = -1, cleanup = null, busy = false;
+
+function setStatus(t){ statusEl.textContent = t; }
+function clearTimers(){ timers.forEach(clearTimeout); timers = []; }
+
+function buildGrid(){
+  grid.innerHTML = '';
+  tiles = [];
+  // one dashed "add" slot after the real levels
+  for (let i = 0; i <= LEVELS.length; i++){
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.setAttribute('role','listitem');
+    if (i < LEVELS.length){
+      b.className = 'tile';
+      b.setAttribute('aria-label', 'Level ' + (i+1) + ': ' + LEVELS[i].name);
+      b.innerHTML = '<div class="bezel"><div class="screen" style="background:' + BGS[i % 8] + '">' + blobSvg(i, 92) +
+        '<span class="chip">' + pad(i+1) + '</span></div></div><div class="name">' + LEVELS[i].name + '</div>';
+      b.onclick = () => { if (!busy) { endRush(); selectOnly(i); openLevel(i); } };
+    } else {
+      b.className = 'tile empty';
+      b.setAttribute('aria-label', 'Add your own level');
+      b.innerHTML = '<div class="bezel"><svg viewBox="0 0 24 24" width="40" height="40" fill="none" stroke="#2C86C2" stroke-width="2.4" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></div><div class="name">Your level here</div>';
+      b.onclick = () => { $('pop').classList.add('open'); setStatus('Got a level in mind? Add the next channel.'); };
+    }
+    grid.appendChild(b);
+    tiles.push(b);
+  }
+}
+function selectOnly(i){ tiles.forEach((t,k) => t.classList.toggle('sel', k === i)); }
+function clearBadges(){ tiles.forEach(t => { t.classList.remove('sel'); const bd = t.querySelector('.badge'); if (bd) bd.remove(); }); }
+
+/* =====================================================================
+   OPEN / CLOSE ANIMATION  (tile screen grows to fill the viewport)
+   ===================================================================== */
+const EASE = 'cubic-bezier(.2,.8,.2,1)';
+const dur = ms => reduce ? 0 : ms;
+function rectOf(el){ const r = el.getBoundingClientRect(); return { left:r.left, top:r.top, width:r.width, height:r.height }; }
+function frame(r, radius){ return { left:r.left+'px', top:r.top+'px', width:r.width+'px', height:r.height+'px', borderRadius:radius+'px' }; }
+
+function mountLevel(i){
+  const lvl = LEVELS[i];
+  if (cleanup){ try{ cleanup(); }catch(e){} cleanup = null; }
+  $('lvlTitle').textContent = 'Level ' + pad(i+1) + ' · ' + lvl.name;
+  $('lvlProg').textContent = rush ? (rush.pos + 1) + ' / ' + rush.order.length : '';
+  const el = $('level'); el.innerHTML = '';
+  cleanup = lvl.mount(el, { complete: onComplete, fail: () => mountLevel(i) }) || null;
+}
+
+async function openLevel(i){
+  busy = true; openIdx = i;
+  $('pop').classList.remove('open');
+  const screen = tiles[i].querySelector('.screen');
+  const from = rectOf(screen);
+  const full = { left:0, top:0, width:innerWidth, height:innerHeight };
+  sheet.style.background = BGS[i % 8];
+  sheet.querySelector('.blob').innerHTML = blobSvg(i, 92);
+  sheet.querySelector('.blob').style.opacity = 1;
+  sheet.querySelector('.stage').style.opacity = 0;
+  Object.assign(sheet.style, frame(from, 15));
+  sheet.classList.add('on');
+  grid.classList.add('dim'); $('bar').classList.add('hide');
+
+  const grow = sheet.animate([frame(from,15), frame(full,0)], { duration: dur(520), easing: EASE, fill:'forwards' });
+  const blob = sheet.querySelector('.blob svg');
+  blob.animate([{ transform:'scale(1)', opacity:1 }, { transform:'scale(6)', opacity:0 }], { duration: dur(520), easing:'ease-in', fill:'forwards' });
+  await grow.finished;
+  Object.assign(sheet.style, frame(full,0)); grow.cancel();
+
+  mountLevel(i);
+  const stage = sheet.querySelector('.stage');
+  stage.style.opacity = 1;
+  stage.animate([{ opacity:0, transform:'translateY(12px)' }, { opacity:1, transform:'none' }], { duration: dur(260), easing:'ease-out' });
+  $('back').focus();
+  busy = false;
+}
+
+async function closeLevel(){
+  if (openIdx < 0) return;
+  busy = true;
+  const i = openIdx;
+  if (cleanup){ try{ cleanup(); }catch(e){} cleanup = null; }
+  const stage = sheet.querySelector('.stage');
+  await stage.animate([{ opacity:1 }, { opacity:0 }], { duration: dur(160), fill:'forwards' }).finished;
+  grid.classList.remove('dim'); $('bar').classList.remove('hide');
+  const to = rectOf(tiles[i].querySelector('.screen'));
+  const full = { left:0, top:0, width:innerWidth, height:innerHeight };
+  const blob = sheet.querySelector('.blob svg');
+  blob.animate([{ transform:'scale(6)', opacity:0 }, { transform:'scale(1)', opacity:1 }], { duration: dur(460), easing:'ease-out', fill:'forwards' });
+  const shrink = sheet.animate([frame(full,0), frame(to,15)], { duration: dur(460), easing: EASE, fill:'forwards' });
+  await shrink.finished;
+  sheet.classList.remove('on'); shrink.cancel();
+  openIdx = -1; busy = false;
+  tiles[i].focus();
+  setStatus(rush ? 'Rushdown stopped.' : 'Pick a channel, or let fate decide.');
+  if (rush) endRush(true);
+}
+
+/* =====================================================================
+   RANDOM + RUSHDOWN
+   ===================================================================== */
+function randomPlay(){
+  if (busy) return;
+  endRush(); clearTimers(); clearBadges();
+  const final = rnd(LEVELS.length), steps = 14;
+  let delay = 0; setStatus('Rolling…');
+  for (let s = 0; s < steps; s++){
+    delay += 60 + s * 14;
+    const idx = s === steps - 1 ? final : rnd(LEVELS.length);
+    timers.push(setTimeout(() => {
+      selectOnly(idx);
+      if (s === steps - 1){ setStatus('Random pick: ' + pad(idx+1) + ' · ' + LEVELS[idx].name); timers.push(setTimeout(() => openLevel(idx), 350)); }
+    }, delay));
+  }
+}
+
+function startRush(){
+  if (busy) return;
+  clearTimers(); clearBadges();
+  const order = shufflex(LEVELS.map((_, i) => i));
+  rush = { order, pos: 0 };
+  order.forEach((idx, n) => { const bd = document.createElement('div'); bd.className = 'badge'; bd.textContent = n + 1; tiles[idx].appendChild(bd); });
+  $('rushLabel').textContent = 'Stop';
+  setStatus('Rushdown: all ' + order.length + ' levels, random order.');
+  timers.push(setTimeout(() => { selectOnly(order[0]); openLevel(order[0]); }, 700));
+}
+function endRush(silent){
+  if (!rush) return;
+  rush = null; clearTimers(); clearBadges();
+  $('rushLabel').textContent = 'Rushdown';
+  if (!silent) setStatus('Pick a channel, or let fate decide.');
+}
+
+function onComplete(){
+  if (!rush){ setStatus('Level cleared!'); closeLevel(); return; }
+  rush.pos++;
+  if (rush.pos >= rush.order.length){
+    const total = rush.order.length;
+    setStatus('Rushdown complete: ' + total + ' / ' + total + ' levels.');
+    $('level').innerHTML = '<div class="stub"><h3>Rushdown complete!</h3><p>' + total + ' levels cleared.</p><button type="button">Back to channels</button></div>';
+    $('lvlProg').textContent = '';
+    $('level').querySelector('button').onclick = () => { rush = null; endRush(true); setStatus('Pick a channel, or let fate decide.'); closeLevel(); };
+    return;
+  }
+  const next = rush.order[rush.pos], el = $('level');
+  el.style.opacity = 0;
+  setTimeout(() => { openIdx = next; sheet.style.background = BGS[next % 8]; mountLevel(next); el.style.opacity = 1; }, dur(200));
+}
+
+/* =====================================================================
+   WIRING
+   ===================================================================== */
+$('prLink').href = REPO.replace(/\/+$/,'') + '/compare';
+$('issueLink').href = REPO.replace(/\/+$/,'') + '/issues/new/choose';
+$('contribBtn').onclick = () => $('pop').classList.toggle('open');
+$('randomBtn').onclick = randomPlay;
+$('rushBtn').onclick = () => { if (rush) { endRush(); } else startRush(); };
+$('back').onclick = () => { if (!busy) closeLevel(); };
+addEventListener('keydown', e => { if (e.key === 'Escape'){ if (openIdx >= 0 && !busy) closeLevel(); else $('pop').classList.remove('open'); } });
+addEventListener('resize', () => { if (openIdx >= 0 && !busy) Object.assign(sheet.style, frame({left:0,top:0,width:innerWidth,height:innerHeight},0)); });
+
+buildGrid();
+</script>
+</body>
+</html>

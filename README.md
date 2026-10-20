@@ -1,61 +1,64 @@
-# Verifier
+# Captcha Channels
 
-A captcha game built entirely from community pull requests. Every level is one
-small Python file. GitHub Actions compiles it into the site.
+A web game made of CAPTCHA-style mini-games. The home screen is a channel menu:
+a grid of glossy TV-screen tiles, a rounded bar at the bottom with Random and
+Rushdown, and one dashed tile for your own level.
 
 **Play:** https://abduznik.github.io/verifier/
 
-## How a level works
+Inspired by the feel of a console menu. No Nintendo names, logos or assets.
 
-A level is a Python file in `levels_src/`. It has a header comment block and one
-function, `solve(prompt)`, that returns the correct answer as a string.
+## Stack
 
-```python
-# level: backwards
-# title: Backwards Check
-# desc: Human? Then you can read it the other way round.
-# prompt: dlrow olleh
-# answer: hello world
+Plain HTML, CSS and JS in one file (`site/index.html`). No build step, no
+framework, no bundler. Nunito from Google Fonts is the only external request.
 
-def solve(prompt):
-    return prompt[::-1]
-```
+## Levels
 
-`answer:` is a human-readable comment for reviewers only. The real answer is
-produced by **running** `solve(prompt)` at build time, so the level can never
-drift from the code. Only a SHA-256 of the answer ships to the browser — the
-plain answer never reaches the page, and it is not in the repo's build output.
+Eleven, all playable: Crosswalks, Wonky Text, Slide Puzzle, Spin the Duck,
+Traffic Lights, Odd One Out, Click the Bus, Sum It Up, Hold Steady, Pick Pairs,
+Trace the Line.
 
 ## Adding a level
 
-1. Copy any file in `levels_src/`.
-2. Give it a unique `level:` id (used as the filename stem too).
-3. Make `prompt` something a human can solve by looking at it.
-4. Make `solve(prompt)` return the answer.
-5. Open a PR titled `[level] your_level_id`.
+A level is one entry in the `LEVELS` array:
 
-CI compiles every level and rejects the PR if compilation fails, if an answer is
-empty, or if a raw answer field appears in `levels.json`.
+```js
+{ id: 'crosswalks', name: 'Crosswalks',
+  mount(container, api) {
+    // build the game inside `container`
+    // call api.complete() when solved
+    // return a cleanup function (remove listeners and timers)
+  } }
+```
 
-## Rules
+- `api.complete()` — normal mode shows "Level cleared!" and returns to the menu.
+  In Rushdown it advances to the next level.
+- Always return a cleanup function if you set timers or global listeners.
+  The shell calls it on Back and when switching levels.
+- Keep it keyboard accessible and usable at phone width.
 
-- **Stdlib only.** No pip installs. Levels run inside CI.
-- **`solve` must return a `str`.**
-- **Deterministic.** Same prompt in, same answer out, every time.
-- **No network, no file writes, no `eval`.** This is a captcha, not a sandbox.
-- **Human-solvable.** The prompt has to be readable on a phone screen. A level
-  nobody can answer is a broken level.
-- **Original.** Don't re-implement an existing level.
+Open a PR titled `[level] your_level_id`. CI checks the shell still has eleven
+registered levels, unique ids, no stubs, and no external script tags.
+
+## Modes
+
+- **Normal** — click a tile, it grows into the level.
+- **Random** — a roll across the tiles that slows down and lands on one.
+- **Rushdown** — every level once, in random order, with queue badges and
+  `n / N` progress. The button becomes **Stop** while running.
 
 ## Layout
 
 ```
-levels_src/*.py     level sources (what contributors write)
-build_levels.py     compiler: source -> levels.json
-levels.json         generated — never edit by hand
-index.html/app.js   the game
-.github/workflows/  CI compile gate + Pages deploy
+site/index.html            the game (single file, deployed as-is)
+.github/workflows/         site check + Pages deploy
+worker/                    optional Cloudflare Worker for anonymous submissions
+levels_src/, build_levels.py   legacy Python level pipeline (not wired into the site)
 ```
 
-The site redeploys on every push to `main` and rebuilds daily, so anything
-merged shows up without touching the frontend.
+## Legacy
+
+`levels_src/` and `build_levels.py` are the earlier experiment: contributing a
+Python file that CI compiles into a text captcha. The site no longer reads them.
+They are kept for reference only.

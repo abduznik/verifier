@@ -1,1 +1,3 @@
-levels.json.bak
+node_modules/
+.wrangler/
+.token
