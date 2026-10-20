@@ -28,7 +28,7 @@ button{font-family:inherit;cursor:pointer}
 header{margin-top:26px;text-align:center;flex:0 0 auto}
 header h1{margin:0;font-size:22px;font-weight:900;letter-spacing:3px}
 header p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--ink3)}
-#grid{margin-top:18px;width:min(1064px,calc(100% - 32px));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 24px;transition:opacity .25s ease}
+#grid{margin-top:18px;width:min(1064px,calc(100% - 32px));display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:28px 24px;transition:opacity .12s ease}
 #grid.dim{opacity:0;pointer-events:none}
 
 /* ---------- channel tile (TV screen) ---------- */
@@ -64,7 +64,7 @@ header p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--ink3)}
 #bar{position:fixed;left:0;right:0;bottom:0;z-index:20;height:var(--bar-h);
      padding:0 max(16px, env(safe-area-inset-left)) 0 max(16px, env(safe-area-inset-right));
      border-radius:70px 70px 0 0;background:#fff;box-shadow:0 -6px 24px rgba(60,90,120,.14);
-     display:flex;align-items:center;justify-content:space-between;gap:12px;transition:transform .35s ease}
+     display:flex;align-items:center;justify-content:space-between;gap:12px;transition:transform .18s ease}
 #bar.hide{transform:translateY(140px)}
 .round{width:96px;height:96px;flex:0 0 auto;margin-top:-4px;border-radius:50%;border:3px solid #CFE3F1;background:linear-gradient(180deg,#fff,#E6F2FA);box-shadow:0 6px 14px var(--shadow);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:0;color:var(--blue-ink);font-size:13px;font-weight:900;transition:transform .15s ease}
 .round:hover{transform:translateY(-16px)}
@@ -83,12 +83,12 @@ header p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--ink3)}
 /* ---------- open-channel animation ---------- */
 #sheet{position:fixed;z-index:10;display:none;overflow:hidden;will-change:left,top,width,height}
 #sheet.on{display:block}
-#sheet .stage{position:absolute;inset:0;display:flex;flex-direction:column;opacity:0}
+#sheet .stage{position:absolute;inset:0;display:flex;flex-direction:column}
 #sheet .top{height:72px;padding:0 28px;display:flex;align-items:center;justify-content:space-between;gap:16px;background:rgba(255,255,255,.85)}
 #sheet .top h2{margin:0;font-size:20px;font-weight:900}
 #sheet .top .prog{font-size:15px;font-weight:800;color:var(--ink3)}
 #back{height:44px;padding:0 22px;border-radius:22px;border:3px solid #CFE3F1;background:linear-gradient(180deg,#fff,#E6F2FA);color:var(--blue-ink);font-size:15px;font-weight:900}
-#level{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;transition:opacity .2s ease;overflow-y:auto}
+#level{flex:1;display:flex;align-items:center;justify-content:center;padding:24px;transition:opacity .1s ease;overflow-y:auto}
 #level .stub{text-align:center;display:flex;flex-direction:column;gap:14px;align-items:center}
 #level .stub button{height:48px;padding:0 28px;border-radius:24px;border:0;background:var(--blue-d);color:#fff;font-size:16px;font-weight:900}
 
@@ -416,6 +416,10 @@ function mountLevel(i){
 }
 
 async function openLevel(i){
+  // A second tap while the first open is still animating would leave the
+  // stage at opacity 0 behind a fully grown sheet: a blank screen. Guard on
+  // the sheet actually being open, not on `busy` alone.
+  if (sheet.classList.contains('on')){ if (!busy && i !== openIdx) { await closeLevel(true); } else { return; } }
   busy = true; openIdx = i;
   $('pop').classList.remove('open');
   const screen = tiles[i].querySelector('.screen');
@@ -428,14 +432,14 @@ async function openLevel(i){
   app.classList.add('locked');
   grid.classList.add('dim'); $('bar').classList.add('hide');
 
-  const grow = sheet.animate([frame(from, 15), frame(full, 0)], { duration: dur(520), easing: EASE, fill:'forwards' });
+  const grow = sheet.animate([frame(from, 15), frame(full, 0)], { duration: dur(260), easing: EASE, fill:'forwards' });
   await grow.finished;
   Object.assign(sheet.style, frame(full, 0)); grow.cancel();
 
   mountLevel(i);
   const stage = sheet.querySelector('.stage');
   stage.style.opacity = 1;
-  stage.animate([{ opacity:0, transform:'translateY(12px)' }, { opacity:1, transform:'none' }], { duration: dur(260), easing:'ease-out' });
+  stage.animate([{ opacity:0, transform:'translateY(12px)' }, { opacity:1, transform:'none' }], { duration: dur(130), easing:'ease-out', fill:'forwards' });
   $('back').focus();
   busy = false;
 }
@@ -446,12 +450,12 @@ async function closeLevel(keepStatus){
   const i = openIdx;
   if (cleanup){ try { cleanup(); } catch(e){} cleanup = null; }
   const stage = sheet.querySelector('.stage');
-  await stage.animate([{ opacity:1 }, { opacity:0 }], { duration: dur(160), fill:'forwards' }).finished;
+  await stage.animate([{ opacity:1 }, { opacity:0 }], { duration: dur(80), fill:'forwards' }).finished;
   grid.classList.remove('dim'); $('bar').classList.remove('hide');
   app.classList.remove('locked');
   const to = rectOf(tiles[i].querySelector('.screen'));
   const full = { left:0, top:0, width:innerWidth, height:innerHeight };
-  const shrink = sheet.animate([frame(full, 0), frame(to, 15)], { duration: dur(460), easing: EASE, fill:'forwards' });
+  const shrink = sheet.animate([frame(full, 0), frame(to, 15)], { duration: dur(230), easing: EASE, fill:'forwards' });
   await shrink.finished;
   sheet.classList.remove('on'); shrink.cancel();
   openIdx = -1; busy = false;
@@ -514,7 +518,7 @@ function onComplete(){
   }
   const next = rush.order[rush.pos], el = $('level');
   el.style.opacity = 0;
-  setTimeout(() => { openIdx = next; sheet.style.background = BGS[next % 8]; mountLevel(next); el.style.opacity = 1; }, dur(200));
+  setTimeout(() => { openIdx = next; sheet.style.background = BGS[next % 8]; mountLevel(next); el.style.opacity = 1; }, dur(100));
 }
 
 /* =====================================================================
