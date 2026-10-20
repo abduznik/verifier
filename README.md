@@ -1,8 +1,8 @@
 # Captcha Channels
 
 A web game made of CAPTCHA-style mini-games. The home screen is a channel menu:
-a grid of glossy TV-screen tiles, a rounded bar at the bottom with Random and
-Rushdown, and one dashed tile for your own level.
+glossy TV-screen tiles, a pinned bar at the bottom with Random and Rushdown, and
+one dashed tile where the next community level goes.
 
 **Play:** https://abduznik.github.io/verifier/
 
@@ -15,16 +15,26 @@ framework, no bundler. Nunito from Google Fonts is the only external request.
 
 ## Levels
 
-Eleven, all playable: Crosswalks, Wonky Text, Slide Puzzle, Spin the Duck,
-Traffic Lights, Odd One Out, Click the Bus, Sum It Up, Hold Steady, Pick Pairs,
-Trace the Line.
+Five, each showing a live preview inside its tile:
+
+- **Wonky Text** — type the distorted word.
+- **Slide Puzzle** — 3×3, shuffled by legal moves so it is always solvable.
+- **Odd One Out** — one shape differs; find it.
+- **Sum It Up** — arithmetic.
+- **Pick Pairs** — memory match.
+
+The rest of the original eleven were cut: timing- and drag-based levels
+(Crosswalks, Spin the Duck, Traffic Lights, Hold Steady, Trace the Line) and
+Click the Bus were unreliable on phones. Add them back as contributions, with
+the kinks worked out.
 
 ## Adding a level
 
-A level is one entry in the `LEVELS` array:
+A level is one entry in `LEVELS`:
 
 ```js
-{ id: 'crosswalks', name: 'Crosswalks',
+{ id: 'wonky-text', name: 'Wonky Text',
+  preview: PREVIEW.wonky,      // small HTML shown in the tile
   mount(container, api) {
     // build the game inside `container`
     // call api.complete() when solved
@@ -33,13 +43,13 @@ A level is one entry in the `LEVELS` array:
 ```
 
 - `api.complete()` — normal mode shows "Level cleared!" and returns to the menu.
-  In Rushdown it advances to the next level.
-- Always return a cleanup function if you set timers or global listeners.
-  The shell calls it on Back and when switching levels.
-- Keep it keyboard accessible and usable at phone width.
+  Rushdown advances to the next level.
+- Return a cleanup function if you set timers or global listeners. The shell
+  calls it on Back and when switching levels.
+- Keep it keyboard accessible and usable at 390px width.
 
-Open a PR titled `[level] your_level_id`. CI checks the shell still has eleven
-registered levels, unique ids, no stubs, and no external script tags.
+Open a PR titled `[level] your_level_id`. CI checks five levels, unique ids, no
+stubs, a non-placeholder REPO, and that the bottom bar is pinned.
 
 ## Modes
 
@@ -51,14 +61,13 @@ registered levels, unique ids, no stubs, and no external script tags.
 ## Layout
 
 ```
-site/index.html            the game (single file, deployed as-is)
-.github/workflows/         site check + Pages deploy
-worker/                    optional Cloudflare Worker for anonymous submissions
-levels_src/, build_levels.py   legacy Python level pipeline (not wired into the site)
+site/index.html      the game (single file, deployed as-is)
+scripts/check_site.js  CI validation of the shell
+.github/workflows/   site check + Pages deploy
+worker/              Cloudflare Worker for anonymous level submissions
 ```
 
-## Legacy
+## Notes
 
-`levels_src/` and `build_levels.py` are the earlier experiment: contributing a
-Python file that CI compiles into a text captcha. The site no longer reads them.
-They are kept for reference only.
+`#app` is the only scroll container and `#bar` is `position: fixed`, so the bar
+stays pinned on phones instead of scrolling away with the grid.
