@@ -14,34 +14,4 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Validate the channel shell
-        run: |
-          node -e '
-            const fs = require("fs");
-            const html = fs.readFileSync("site/index.html", "utf8");
-            const fail = (m) => { console.error("FAIL: " + m); process.exit(1); };
-
-            if (!html.includes("<title>Captcha Channels</title>")) fail("missing title");
-
-            const repo = /const REPO = \x27([^\x27]+)\x27/.exec(html);
-            if (!repo) fail("REPO not set");
-            if (repo[1].includes("your-name")) fail("REPO still points at the placeholder");
-
-            const levels = html.match(/\{ id:\x27[^\x27]+\',\s*name:\x27[^\x27]+\',\s*mount:/g) || [];
-            if (levels.length !== 11) fail("expected 11 levels, found " + levels.length);
-
-            if (/\bstub\s*\(/.test(html)) fail("a stub level is still registered");
-            if (/TODO|FIXME/.test(html)) fail("unfinished marker left in the shell");
-
-            const ids = [...html.matchAll(/id:\x27([^\x27]+)\x27/g)].map(m => m[1]);
-            const dupes = ids.filter((x, i) => ids.indexOf(x) !== i);
-            if (dupes.length) fail("duplicate level id(s): " + dupes.join(", "));
-
-            console.log("OK: " + levels.length + " levels, REPO " + repo[1]);
-          '
-      - name: Confirm the page is self-contained
-        run: |
-          test -f site/index.html || { echo "FAIL: site/index.html missing"; exit 1; }
-          n=$(grep -c '<script src=' site/index.html || true)
-          [ "$n" = "0" ] || { echo "FAIL: external script tag found"; exit 1; }
-          echo "OK: no build step"
+      - run: node scripts/check_site.js
