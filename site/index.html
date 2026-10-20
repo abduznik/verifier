@@ -76,9 +76,29 @@ header p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--ink3)}
 #pop{position:fixed;left:max(16px, env(safe-area-inset-left));bottom:calc(var(--bar-h) + 20px);width:320px;max-width:calc(100vw - 32px);padding:18px;border-radius:24px;background:#fff;box-shadow:0 12px 32px rgba(60,90,120,.28),inset 0 0 0 2px var(--edge);display:none;flex-direction:column;gap:10px;z-index:30}
 #pop.open{display:flex}
 #pop h2{margin:0;font-size:16px;font-weight:900}
-#pop a{display:block;padding:12px 14px;border-radius:14px;background:#EAF4FB;text-decoration:none;color:#1E5F91;font-size:15px;font-weight:800}
-#pop a:hover{background:#DCEEFA}
-#pop a small{display:block;font-size:13px;font-weight:700;color:var(--ink2)}
+#pop a, #pop .popitem{display:block;width:100%;text-align:left;padding:12px 14px;border-radius:14px;border:0;background:#EAF4FB;text-decoration:none;color:#1E5F91;font-size:15px;font-weight:800}
+#pop a:hover, #pop .popitem:hover{background:#DCEEFA}
+#pop a small, #pop .popitem small{display:block;font-size:13px;font-weight:700;color:var(--ink2)}
+
+/* ---------- submit form ---------- */
+#sub{position:fixed;inset:0;z-index:40;display:none;align-items:flex-start;justify-content:center;padding:24px 16px;background:rgba(40,70,95,.35);overflow-y:auto}
+#sub.open{display:flex}
+#sub form{width:min(520px,100%);background:#fff;border-radius:22px;padding:22px;box-shadow:0 18px 48px rgba(30,70,100,.35);display:flex;flex-direction:column;gap:12px}
+#sub .subhead{display:flex;align-items:center;justify-content:space-between;gap:12px}
+#sub h2{margin:0;font-size:19px;font-weight:900}
+#sub .x{border:0;background:#EFF6FB;color:var(--ink2);width:34px;height:34px;border-radius:50%;font-size:15px;font-weight:900}
+#sub .subnote{margin:0;font-size:13px;font-weight:700;color:var(--ink3);line-height:1.4}
+#sub label{display:flex;flex-direction:column;gap:5px;font-size:12px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;color:var(--ink3)}
+#sub input, #sub textarea{font-family:inherit;font-size:15px;font-weight:700;color:var(--ink);padding:11px 13px;border-radius:12px;border:2px solid #CFE3F1;background:#FBFDFF;text-transform:none;letter-spacing:normal}
+#sub textarea{font-family:ui-monospace,Consolas,monospace;font-size:13px;line-height:1.5;resize:vertical}
+#sub input:focus, #sub textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(47,163,224,.2)}
+#sub .primary{height:50px;border-radius:25px;border:0;background:var(--blue-d);color:#fff;font-size:15px;font-weight:900}
+#sub .primary:disabled{opacity:.6}
+#sub .feedback{min-height:1.2rem;margin:0;font-size:13px;font-weight:800;text-align:center}
+#sub .feedback.ok{color:#2F9E44}
+#sub .feedback.bad{color:#D9480F}
+#sub .back{align-self:center;border:0;background:none;color:var(--ink3);font-size:13px;font-weight:800;text-decoration:underline}
+.hp{position:absolute!important;left:-9999px!important;width:1px!important;height:1px!important;opacity:0!important}
 
 /* ---------- open-channel animation ---------- */
 #sheet{position:fixed;z-index:10;display:none;overflow:hidden;will-change:left,top,width,height}
@@ -142,8 +162,27 @@ header p{margin:2px 0 0;font-size:14px;font-weight:700;color:var(--ink3)}
 
   <div id="pop" role="dialog" aria-label="Add a channel">
     <h2>Add a channel</h2>
-    <a id="prLink" target="_blank" rel="noopener">Submit a level<small>Open a pull request on GitHub</small></a>
+    <button class="popitem" type="button" id="openSubmit">Submit a level<small>Type it here — no GitHub account needed</small></button>
     <a id="issueLink" target="_blank" rel="noopener">Have an idea?<small>Open an issue on GitHub</small></a>
+  </div>
+
+  <div id="sub" role="dialog" aria-modal="true" aria-label="Submit a level">
+    <form id="subform" autocomplete="off">
+      <div class="subhead">
+        <h2>Submit a level</h2>
+        <button type="button" class="x" id="subClose" aria-label="Close">✕</button>
+      </div>
+      <p class="subnote">Filed anonymously as a GitHub issue. A maintainer reviews it before it ships.</p>
+      <label>Level id <input id="f_id" required pattern="[a-z0-9_]{3,40}" placeholder="backwards" spellcheck="false"></label>
+      <label>Title <input id="f_title" required maxlength="80" placeholder="Backwards Check"></label>
+      <label>Description <input id="f_desc" required maxlength="200" placeholder="Read it the other way round."></label>
+      <label>Prompt (what the player sees) <input id="f_prompt" required maxlength="300" placeholder="dlrow olleh"></label>
+      <label>Python solution <textarea id="f_solution" required rows="6" spellcheck="false" placeholder="def solve(prompt):&#10;    return prompt[::-1]"></textarea></label>
+      <input id="f_website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+      <button type="submit" class="primary" id="subSend">File submission</button>
+      <p class="feedback" id="subMsg" role="status" aria-live="polite"></p>
+      <button type="button" class="back" id="subCancel">Cancel</button>
+    </form>
   </div>
 
   <div id="bar">
@@ -524,14 +563,61 @@ function onComplete(){
 /* =====================================================================
    WIRING
    ===================================================================== */
-$('prLink').href = REPO.replace(/\/+$/, '') + '/compare';
+const API = 'https://verifier-api.bacholate.workers.dev';
 $('issueLink').href = REPO.replace(/\/+$/, '') + '/issues/new/choose';
 $('contribBtn').onclick = () => $('pop').classList.toggle('open');
+
+/* ---------- anonymous level submission ---------- */
+$('openSubmit').onclick = () => {
+  $('pop').classList.remove('open');
+  $('sub').classList.add('open');
+  $('subMsg').textContent = '';
+  $('subMsg').className = 'feedback';
+  $('f_id').focus();
+};
+function closeSubmit(){ $('sub').classList.remove('open'); }
+$('subClose').onclick = closeSubmit;
+$('subCancel').onclick = closeSubmit;
+$('sub').onclick = e => { if (e.target === $('sub')) closeSubmit(); };
+
+$('subform').addEventListener('submit', async e => {
+  e.preventDefault();
+  const msg = $('subMsg'), send = $('subSend');
+  msg.className = 'feedback';
+  msg.textContent = 'Filing...';
+  send.disabled = true;
+  try {
+    const res = await fetch(API + '/api/submit', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        level_id: $('f_id').value.trim(),
+        title: $('f_title').value.trim(),
+        desc: $('f_desc').value.trim(),
+        prompt: $('f_prompt').value.trim(),
+        solution: $('f_solution').value,
+        website: $('f_website').value
+      })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'HTTP ' + res.status);
+    msg.className = 'feedback ok';
+    msg.innerHTML = 'Filed as issue #' + data.issue + '. <a href="' + data.url + '" target="_blank" rel="noopener">View it</a>';
+    $('subform').reset();
+  } catch (err) {
+    msg.className = 'feedback bad';
+    msg.textContent = err.message === 'Failed to fetch' ? 'Service unreachable. Try again later.' : err.message;
+  } finally {
+    send.disabled = false;
+  }
+});
+
 $('randomBtn').onclick = randomPlay;
 $('rushBtn').onclick = () => { if (rush){ endRush(); } else startRush(); };
 $('back').onclick = () => { if (!busy) closeLevel(); };
 addEventListener('keydown', e => {
   if (e.key === 'Escape'){
+    if ($('sub').classList.contains('open')) return closeSubmit();
     if (openIdx >= 0 && !busy) closeLevel();
     else $('pop').classList.remove('open');
   }
