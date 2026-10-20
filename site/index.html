@@ -442,6 +442,12 @@ function clearBadges(){ tiles.forEach(t => { t.classList.remove('sel'); const bd
    ===================================================================== */
 const EASE = 'cubic-bezier(.2,.8,.2,1)';
 const dur = ms => reduce ? 0 : ms;
+// animation.finished never settles when the tab is backgrounded or the element
+// is hidden, which would leave `busy` stuck true and freeze the whole app.
+const after = (anim, ms) => Promise.race([
+  anim.finished.catch(() => {}),
+  new Promise(r => setTimeout(r, ms + 60))
+]);
 function rectOf(el){ const r = el.getBoundingClientRect(); return { left:r.left, top:r.top, width:r.width, height:r.height }; }
 function frame(r, radius){ return { left:r.left+'px', top:r.top+'px', width:r.width+'px', height:r.height+'px', borderRadius:radius+'px' }; }
 
@@ -472,7 +478,7 @@ async function openLevel(i){
   grid.classList.add('dim'); $('bar').classList.add('hide');
 
   const grow = sheet.animate([frame(from, 15), frame(full, 0)], { duration: dur(260), easing: EASE, fill:'forwards' });
-  await grow.finished;
+  await after(grow, dur(260));
   Object.assign(sheet.style, frame(full, 0)); grow.cancel();
 
   mountLevel(i);
@@ -489,13 +495,13 @@ async function closeLevel(keepStatus){
   const i = openIdx;
   if (cleanup){ try { cleanup(); } catch(e){} cleanup = null; }
   const stage = sheet.querySelector('.stage');
-  await stage.animate([{ opacity:1 }, { opacity:0 }], { duration: dur(80), fill:'forwards' }).finished;
+  await after(stage.animate([{ opacity:1 }, { opacity:0 }], { duration: dur(80), fill:'forwards' }), dur(80));
   grid.classList.remove('dim'); $('bar').classList.remove('hide');
   app.classList.remove('locked');
   const to = rectOf(tiles[i].querySelector('.screen'));
   const full = { left:0, top:0, width:innerWidth, height:innerHeight };
   const shrink = sheet.animate([frame(full, 0), frame(to, 15)], { duration: dur(230), easing: EASE, fill:'forwards' });
-  await shrink.finished;
+  await after(shrink, dur(230));
   sheet.classList.remove('on'); shrink.cancel();
   openIdx = -1; busy = false;
   tiles[i].focus();
@@ -626,7 +632,49 @@ addEventListener('resize', () => {
   if (openIdx >= 0 && !busy) Object.assign(sheet.style, frame({ left:0, top:0, width:innerWidth, height:innerHeight }, 0));
 });
 
-buildGrid();
+/* ---- compiled levels (Python in, captcha out) ---- */
+const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Prompts arrive from anonymous submissions, so everything is escaped.
+function textLevel(lvl){
+  return function mount(el, api){
+    const wrap = mk('div', 'lv');
+    wrap.innerHTML = '<h3>' + esc(lvl.title) + '</h3><p>' + esc(lvl.desc) + '</p>' +
+      '<div class="prompt">' + esc(lvl.prompt) + '</div>' +
+      '<input type="text" aria-label="Your answer" autocomplete="off" spellcheck="false">' +
+      '<button class="primary" type="button">Check</button>';
+    el.appendChild(wrap);
+    const box = wrap.querySelector('input'), btn = wrap.querySelector('button');
+    const norm = s => s.split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+    async function hash(s){
+      const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+      return [...new Uint8Array(b)].map(x => x.toString(16).padStart(2, '0')).join('');
+    }
+    async function check(){
+      if (!box.value.trim()) return;
+      (await hash(norm(box.value)) === lvl.answer_sha) ? api.complete() : reject(wrap);
+    }
+    btn.onclick = check;
+    box.onkeydown = e => { if (e.key === 'Enter') check(); };
+    box.focus();
+  };
+}
+
+async function loadCompiledLevels(){
+  try {
+    const res = await fetch('levels.json', { cache: 'no-cache' });
+    if (!res.ok) return;
+    const extra = await res.json();
+    extra.forEach(l => LEVELS.push({
+      id: l.id,
+      name: l.title,
+      preview: '<div class="pv pv-sum">' + esc(l.prompt.slice(0, 16)) + '</div>',
+      mount: textLevel(l)
+    }));
+  } catch (e) { /* no compiled levels yet — the five built-ins still work */ }
+}
+
+loadCompiledLevels().then(buildGrid);
 </script>
 </body>
 </html>

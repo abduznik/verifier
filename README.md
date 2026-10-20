@@ -30,26 +30,38 @@ the kinks worked out.
 
 ## Adding a level
 
-A level is one entry in `LEVELS`:
+Two ways in, both ending as an issue a maintainer can merge.
 
-```js
-{ id: 'wonky-text', name: 'Wonky Text',
-  preview: PREVIEW.wonky,      // small HTML shown in the tile
-  mount(container, api) {
-    // build the game inside `container`
-    // call api.complete() when solved
-    // return a cleanup function (remove listeners and timers)
-  } }
+**1. From the site (no GitHub account).** Contribute → Submit a level → fill the
+form. It posts to the Worker, which files a labelled issue.
+
+**2. As a file.** Drop a Python file in `levels_src/` and open a PR.
+
+A compiled level is a header block plus `solve(prompt)`:
+
+```python
+# level: power_of_two
+# title: Power of Two
+# desc: What power of two is this? Answer with the exponent.
+# prompt: 512
+# answer: 9
+
+def solve(prompt):
+    n, e = int(prompt), 0
+    while n > 1 and n % 2 == 0:
+        n //= 2
+        e += 1
+    return str(e)
 ```
 
-- `api.complete()` — normal mode shows "Level cleared!" and returns to the menu.
-  Rushdown advances to the next level.
-- Return a cleanup function if you set timers or global listeners. The shell
-  calls it on Back and when switching levels.
-- Keep it keyboard accessible and usable at 390px width.
+`build_levels.py` runs `solve(prompt)` at build time, so the answer can never
+drift from the code. Only the SHA-256 of the answer reaches `levels.json` — the
+plain answer never ships to the browser. `answer:` is a comment for reviewers.
 
-Open a PR titled `[level] your_level_id`. CI checks five levels, unique ids, no
-stubs, a non-placeholder REPO, and that the bottom bar is pinned.
+The site fetches `levels.json` and appends each entry as a level: prompt on
+screen, a text box, hash comparison on submit. No JavaScript required from the
+contributor.
+
 
 ## Modes
 

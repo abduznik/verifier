@@ -24,7 +24,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 SRC = ROOT / "levels_src"
-OUT = ROOT / "levels.json"
+OUT = ROOT / "site" / "levels.json"
 
 HEADER_RE = re.compile(r"^#\s*(level|title|desc|prompt|answer)\s*:\s*(.+)$", re.M)
 SOLVE_RE = re.compile(r"^def\s+solve\s*\(\s*(\w*)\s*\)\s*:", re.M)

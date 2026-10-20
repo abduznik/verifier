@@ -25,5 +25,14 @@
     "answer_sha": "77af778b51abd4a3c51c5ddd97204a9c3ae614ebccb75a606c3b6865aed6744e",
     "answer_len": 3,
     "source": "04_bits.py"
+  },
+  {
+    "id": "power_of_two",
+    "title": "Power of Two",
+    "desc": "What power of two is this? Answer with the exponent.",
+    "prompt": "512",
+    "answer_sha": "19581e27de7ced00ff1ce50b2047e7a567c76b1cbaebabe5ef03f7c3017bb5b7",
+    "answer_len": 1,
+    "source": "power_of_two.py"
   }
 ]

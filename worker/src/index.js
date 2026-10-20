@@ -88,7 +88,19 @@ export default {
     const origin = env.ALLOWED_ORIGIN || "*";
     const url = new URL(req.url);
 
-    if (req.method === "OPTIONS") return json({}, 204, origin);
+    // A 204 must have a null body — returning json() here throws and the
+    // browser never gets its preflight, which reads as "Failed to fetch".
+    if (req.method === "OPTIONS") {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          "access-control-allow-origin": origin,
+          "access-control-allow-methods": "POST, GET, OPTIONS",
+          "access-control-allow-headers": "content-type",
+          "access-control-max-age": "86400",
+        },
+      });
+    }
     if (url.pathname === "/api/health") return json({ ok: true }, 200, origin);
     if (url.pathname !== "/api/submit") return json({ error: "not found" }, 404, origin);
     if (req.method !== "POST") return json({ error: "POST only" }, 405, origin);
