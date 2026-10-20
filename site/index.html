@@ -610,7 +610,7 @@ async function openLevel(i){
   busy = false;
 }
 
-async function closeLevel(){
+async function closeLevel(keepStatus){
   if (openIdx < 0) return;
   busy = true;
   const i = openIdx;
@@ -627,7 +627,7 @@ async function closeLevel(){
   sheet.classList.remove('on'); shrink.cancel();
   openIdx = -1; busy = false;
   tiles[i].focus();
-  setStatus(rush ? 'Rushdown stopped.' : 'Pick a channel, or let fate decide.');
+  if (!keepStatus) setStatus(rush ? 'Rushdown stopped.' : 'Pick a channel, or let fate decide.');
   if (rush) endRush(true);
 }
 
@@ -667,7 +667,7 @@ function endRush(silent){
 }
 
 function onComplete(){
-  if (!rush){ setStatus('Level cleared!'); closeLevel(); return; }
+  if (!rush){ setStatus('Level cleared!'); closeLevel(true); return; }
   rush.pos++;
   if (rush.pos >= rush.order.length){
     const total = rush.order.length;
