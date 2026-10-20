@@ -1,0 +1,29 @@
+[
+  {
+    "id": "backwards",
+    "title": "Backwards Check",
+    "desc": "Human? Then you can read it the other way round.",
+    "prompt": "dlrow olleh",
+    "answer_sha": "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9",
+    "answer_len": 11,
+    "source": "02_backwards.py"
+  },
+  {
+    "id": "math_gate",
+    "title": "Math Gate",
+    "desc": "Not a calculator. Prove it.",
+    "prompt": "17 * 3",
+    "answer_sha": "031b4af5197ec30a926f48cf40e11a7dbc470048a21e4003b7a3c07c5dab1baa",
+    "answer_len": 2,
+    "source": "03_math.py"
+  },
+  {
+    "id": "bits",
+    "title": "Bit Reader",
+    "desc": "Decode the binary. Eight bits, one letter.",
+    "prompt": "01000011 01000001 01010100",
+    "answer_sha": "77af778b51abd4a3c51c5ddd97204a9c3ae614ebccb75a606c3b6865aed6744e",
+    "answer_len": 3,
+    "source": "04_bits.py"
+  }
+]

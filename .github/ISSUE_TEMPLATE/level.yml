@@ -1,0 +1,55 @@
+name: Level Submission
+description: Submit a new captcha level (a Python file that solves the prompt)
+title: "[level] "
+labels: ["level request", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A level is one Python file with a header block and a `solve(prompt)` function.
+        Read the README before submitting — this issue is the idea, the PR is the level.
+  - type: input
+    id: level_id
+    attributes:
+      label: Level id
+      description: lowercase_with_underscores, unique, becomes the filename
+      placeholder: backwards
+    validations:
+      required: true
+  - type: input
+    id: title
+    attributes:
+      label: Title
+      placeholder: Backwards Check
+    validations:
+      required: true
+  - type: textarea
+    id: prompt
+    attributes:
+      label: Prompt
+      description: What the player sees. Must be solvable by a human in one look.
+      placeholder: dlrow olleh
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Your solve() function
+      description: Python, stdlib only, returns a str.
+      render: python
+      placeholder: |
+        def solve(prompt):
+            return prompt[::-1]
+    validations:
+      required: true
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checklist
+      options:
+        - label: Stdlib only, no network or file access
+          required: true
+        - label: solve() is deterministic and returns a string
+          required: true
+        - label: The prompt is human-solvable on a phone
+          required: true
